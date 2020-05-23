@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+
+<head>
+	<title>Interactive AEAD Limits</title>
+	<style>
+	canvas {
+		-moz-user-select: none;
+		-webkit-user-select: none;
+		-ms-user-select: none;
+	}
+	</style>
+</head>
+
+<body>
+	<form name="probabilitySlider">
+		<label for="probability">Attacker success probability p</label>
+		<input type="range" id="probabilityInput" name="probabilityInput" min="1" max="128" value="57">
+		<output name="prob" id="selectedProbability" for="probabilityInput">57</output>
+	</form>
+
+	<div style="width:100%;">
+		<table>
+			<tr>
+				<th>AEAD</th>
+				<th>Data size (l or s)</th>
+				<th>log2(q)</th>
+				<th>log2(v)</th>
+			</tr>
+		</table>
+	</div>
+
+	<script>
+	function appendRowCell(row, text) {
+		let cell = row.insertCell();
+		cell.appendChild(document.createTextNode(text));
+	}
+
+	function generateTable(table, aeads, sizes, p) {
+		for (let aead of aeads) {
+			var ilimiter = aead["ilimit"];
+			var climiter = aead["climit"];
+			var name = aead["name"]
+			for (let l of sizes) {
+				let row = table.insertRow();
+				appendRowCell(row, name);
+				appendRowCell(row, l);
+
+				let q = climiter(p, l);
+				let v = ilimiter(p, l, q);
+				appendRowCell(row, Math.log2(q));
+				appendRowCell(row, Math.log2(v));
+			}
+		}
+	}
+
+	let aeads = [
+		{
+			name: "AEAD_AES_128_GCM",
+			climit: function(p, l) {
+				// q <= (p^(1/2) * 2^(129/2) - 1) / (l + 1)
+				return (Math.sqrt(p) * Math.pow(2, 129/2) - 1) / (l + 1);
+			},
+			ilimit: function(p, l, q) {
+				// v <= (p * 2^127) / (l + 1)
+				return (p * Math.pow(2, 127)) / (l + 1);
+			}
+		},
+		{
+			name: "AEAD_CHACHA20_POLY1305",
+			climit: function(p, l) {
+				// N/A
+				return "N/A";
+			},
+			ilimit: function(p, l, q) {
+				// v <= (p * 2^106) / 8l
+				return (p * Math.pow(2, 106)) / (8*l);
+			}
+		},
+		{
+			name: "AEAD_AES_128_CCM",
+			climit: function(p, l) {
+				// q <= sqrt((p * 2^127) / l^2)
+				return Math.sqrt((p * Math.pow(2, 127)) / Math.pow(l, 2));
+			},
+			ilimit: function(p, l, q) {
+				// v + (2l * (v + q))^2 <= p * 2^128
+				return 0; // TODO(caw): how do we want to represent this? It has multiple solutions
+			}
+		},
+		{
+			name: "AEAD_AES_128_CCM_8",
+			climit: function(p, l) {
+				// q <= sqrt((p * 2^127) / l^2)
+				return Math.sqrt((p * Math.pow(2, 127)) / Math.pow(l, 2));
+			},
+			ilimit: function(p, l, q) {
+				// v * 2^64 + (2l * (v + q))^2 <= p * 2^128
+				return 0; // TODO(caw): same
+			}
+		},
+	];
+	let sizes = [];
+	for (i = 1; i <= 16; i++) {
+		sizes.push(Math.pow(2, i));
+	}
+
+	window.onload = function() {
+		let table = document.querySelector("table");
+		let p = Math.pow(2, -57); // 2^(-57) to start
+		generateTable(table, aeads, sizes, p);
+	};
+
+	function freshTable() {
+		let table = document.querySelector("table");
+		var rows = table.rows;
+		var i = rows.length;
+		while (--i) {
+			rows[i].parentNode.removeChild(rows[i]);
+		}
+		return table;
+	}
+
+	var probabilitySlider = document.getElementById("probabilityInput");
+	probabilitySlider.oninput = function() {
+		let table = freshTable();
+
+		var p = this.value;
+		let selected = document.getElementById("selectedProbability");
+		selected.innerHTML = p;
+
+		generateTable(table, aeads, sizes, Math.pow(2, -1 * parseInt(p)));
+	}
+
+	</script>
+</body>
+
+</html>
+
