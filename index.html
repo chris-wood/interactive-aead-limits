@@ -9,6 +9,14 @@
 		-webkit-user-select: none;
 		-ms-user-select: none;
 	}
+	table { border-collapse: collapse; }
+	tr:nth-child(2n+1) { background-color: #eee; }
+	tr > td:nth-child(2), tr > td:nth-child(3), tr > td:nth-child(4) {
+		text-align: right;
+	}
+	td { padding: 2px 4px; vertical-align: top; }
+	input { height: 1em; }
+	output { display: inline-block; min-width: 32px; vertical-align: top; }
 	</style>
 </head>
 
@@ -31,9 +39,25 @@
 	</div>
 
 	<script>
-	function appendRowCell(row, text) {
+	function appendRowCell(row, value) {
 		let cell = row.insertCell();
-		cell.appendChild(document.createTextNode(text));
+		let content;
+		switch (typeof(value)) {
+			case "number":
+			    content = document.createTextNode(Math.log2(value).toFixed(3));
+				break;
+			case "string":
+			    content = document.createTextNode(value);
+				break;
+			case "object":
+			    content = value;
+				break;
+			default:
+			    console.warn("Got unknown content", value);
+				content = document.createTextNode("ERROR");
+				break;
+		}
+		cell.appendChild(content);
 	}
 
 	function generateTable(table, aeads, sizes, p) {
@@ -46,12 +70,66 @@
 				appendRowCell(row, name);
 				appendRowCell(row, l);
 
-				let q = climiter(p, l);
-				let v = ilimiter(p, l, q);
-				appendRowCell(row, Math.log2(q).toFixed(3));
-				appendRowCell(row, Math.log2(v).toFixed(3));
+				appendRowCell(row, climiter(p, l));
+				appendRowCell(row, ilimiter(p, l));
 			}
 		}
+	}
+
+	function ccm_climit(name, t, p, l) {
+		// q <= sqrt((p * 2^127) / l^2)
+		const q = Math.sqrt((p * Math.pow(2, 127)) / Math.pow(l, 2));
+		const logq = Math.log2(q).toFixed(3);
+		// Usually if you run q to the limit, v is 0, so start at one less.
+		const startq = Math.floor((Math.log2(q) - 1)).toString();
+		console.log(name, logq);
+		let form = document.createElement("form");
+		form.name = name + "-" + l;
+		let label = document.createElement("label");
+		label.for = form.name + "-range";
+		form.appendChild(label);
+		let input = document.createElement("input");
+		input.type = "range";
+		input.id = label.for;
+		input.name = label.for;
+		input.min = Math.floor(logq - 10).toString();
+		input.step = "0.5";
+		input.max = logq;
+		input.value = startq;
+		input.addEventListener("input", function() {
+		    ccm_ilimit_update(form.name, p, t, l, this.value);
+		});
+		form.appendChild(input);
+		let output = document.createElement("output");
+		output.name = form.name + "-selected";
+		output.id = form.name + "-selected";
+		output.for = input.id;
+		output.innerText = startq;
+		form.appendChild(output);
+		setTimeout(function () { ccm_ilimit_update(form.name, p, t, l, startq); }, 0);
+		return form;
+	}
+
+	function ccm_ilimit(name, l) {
+		let ilimit = document.createElement("span");
+		ilimit.id = name + "-" + l + "-v";
+		ilimit.innerText = "0";
+		return ilimit;
+	}
+
+	function ccm_ilimit_update(name, p, t, l, qlog) {
+		let q = Math.pow(2, parseFloat(qlog));
+		let selected = document.getElementById(name + "-selected");
+		selected.innerText = qlog;
+		let ilimit = document.getElementById(name + "-v");
+		// v * 2^(128 - t) + (2l * (v + q))^2 <= p * 2^128
+		// v^2*4*l^2 + v*2^(128-t) + (2lq)^2 - p*2^128 <= 0
+		let a = 4 * l * l;
+		let b = Math.pow(2, 128 - t);
+		let c = Math.pow(2 * l * q, 2) - (p * Math.pow(2, 128));
+		console.log(name, l, a, b, c, );
+		let vmax = (-b + Math.sqrt(Math.pow(b, 2) - (4 * a * c))) / (2 * a);
+		ilimit.innerText = Math.log2(vmax).toFixed(3);
 	}
 
 	let aeads = [
@@ -61,7 +139,7 @@
 				// q <= (p^(1/2) * 2^(129/2) - 1) / (l + 1)
 				return (Math.sqrt(p) * Math.pow(2, 129/2) - 1) / (l + 1);
 			},
-			ilimit: function(p, l, q) {
+			ilimit: function(p, l) {
 				// v <= (p * 2^127) / (l + 1)
 				return (p * Math.pow(2, 127)) / (l + 1);
 			}
@@ -72,7 +150,7 @@
 				// N/A
 				return "N/A";
 			},
-			ilimit: function(p, l, q) {
+			ilimit: function(p, l) {
 				// v <= (p * 2^106) / 8l
 				return (p * Math.pow(2, 106)) / (8*l);
 			}
@@ -80,23 +158,19 @@
 		{
 			name: "AEAD_AES_128_CCM",
 			climit: function(p, l) {
-				// q <= sqrt((p * 2^127) / l^2)
-				return Math.sqrt((p * Math.pow(2, 127)) / Math.pow(l, 2));
+				return ccm_climit("AEAD_AES_128_CCM", 128, p, l);
 			},
-			ilimit: function(p, l, q) {
-				// v + (2l * (v + q))^2 <= p * 2^128
-				return 0; // TODO(caw): how do we want to represent this? It has multiple solutions
+			ilimit: function(p, l) {
+				return ccm_ilimit("AEAD_AES_128_CCM", l);
 			}
 		},
 		{
 			name: "AEAD_AES_128_CCM_8",
 			climit: function(p, l) {
-				// q <= sqrt((p * 2^127) / l^2)
-				return Math.sqrt((p * Math.pow(2, 127)) / Math.pow(l, 2));
+				return ccm_climit("AEAD_AES_128_CCM_8", 64, p, l);
 			},
 			ilimit: function(p, l, q) {
-				// v * 2^64 + (2l * (v + q))^2 <= p * 2^128
-				return 0; // TODO(caw): same
+				return ccm_ilimit("AEAD_AES_128_CCM_8", l);
 			}
 		},
 	];
