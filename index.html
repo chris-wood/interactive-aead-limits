@@ -9,6 +9,14 @@
 		-webkit-user-select: none;
 		-ms-user-select: none;
 	}
+	table { border-collapse: collapse; }
+	tr:nth-child(2n+1) { background-color: #eee; }
+	tr > td:nth-child(2), tr > td:nth-child(3), tr > td:nth-child(4) {
+		text-align: right;
+	}
+	td { padding: 2px 4px; vertical-align: top; }
+	input { height: 1em; }
+	output { display: inline-block; min-width: 32px; vertical-align: top; }
 	</style>
 </head>
 
@@ -84,7 +92,7 @@
 		input.type = "range";
 		input.id = label.for;
 		input.name = label.for;
-		input.min = "1";
+		input.min = Math.floor(logq - 10).toString();
 		input.step = "0.5";
 		input.max = logq;
 		input.value = startq;
