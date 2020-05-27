@@ -32,7 +32,7 @@
 		<table>
 			<tr>
 				<th>AEAD</th>
-				<th>Data size (l or s)</th>
+				<th>Message size [bytes]</th>
 				<th>log2(q)</th>
 				<th>log2(v)</th>
 			</tr>
@@ -180,8 +180,8 @@
 			}
 		},
 	];
-	let sizes = [];
-	for (i = 4; i <= 16; i += 2) {
+	let sizes = [0];
+	for (i = 0; i <= 16; i += 2) {
 		sizes.push(Math.pow(2, i));
 	}
 
