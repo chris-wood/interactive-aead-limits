@@ -78,8 +78,8 @@
 	}
 
 	function ccm_climit(name, t, p, l) {
-		// q <= sqrt((p * 2^127) / l^2)
-		const q = Math.sqrt((p * Math.pow(2, 127)) / Math.pow(l, 2));
+		// q <= sqrt((p * 2^126) / l^2)
+		const q = Math.sqrt((p * Math.pow(2, 126)) / Math.pow(l, 2));
 		const logq = Math.log2(q).toFixed(3);
 		// Usually if you run q to the limit, v is 0, so start at one less.
 		const startq = Math.floor((Math.log2(q) - 1)).toString();
